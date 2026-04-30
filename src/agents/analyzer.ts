@@ -68,18 +68,23 @@ export const analyzerAgent: BuildMaxAgentConfig = {
 
 ## 执行编排建议
 
-阶段1（并发）：
-  - Task(coder, 任务1)
-  - Task(coder, 任务2)
-  等待全部完成 → Task(review)
+### 阶段1（并发）
+- 任务1：新建迁移文件
+- 任务2：创建模型
 
-阶段2（顺序）：
-  - Task(coder, 任务3)
-  等待完成 → Task(review)
+### 阶段2（顺序）
+- 任务3：编写业务类
 
-阶段3（顺序）：
-  - Task(coder, 任务4)
-  等待完成 → Task(review)
+### 阶段3（顺序）
+- 任务4：创建控制器
+
+### 统一审核（全部完成后）
+- Task(review, 检查所有变更)
+
+### ⚠️ 说明
+- 各阶段按依赖关系执行
+- 编码阶段不穿插审核
+- 全部完成后统一审核
 
 ## 风险评估
 - [潜在风险1]
