@@ -34,8 +34,9 @@
   "bugs": {
     "url": "https://github.com/hub-rb/php-flow-agent/issues"
   },
-  "dependencies": {
-    "@opencode-ai/plugin": "^1.14.0"
+  "dependencies": {},
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
   },
   "devDependencies": {
     "bun-types": "latest",
