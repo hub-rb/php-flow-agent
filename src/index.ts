@@ -1,31 +1,22 @@
-import type { Plugin, Config } from "@opencode-ai/plugin";
+/**
+ * php-flow-agent Plugin
+ * 提供 Agent 权限控制和调用链追踪
+ * Agent 注册通过 ~/.config/opencode/agents/*.md 实现
+ */
+import type { Plugin } from "@opencode-ai/plugin";
 
 export const BuildMaxPlugin: Plugin = async (ctx) => {
-  console.log("[php-flow-agent] INIT", { dir: ctx.directory });
+  console.log("[php-flow-agent] 插件已加载");
 
   return {
-    config: async (config: Config) => {
-      console.log("[php-flow-agent] CONFIG HOOK 被调用", {
-        existingAgents: Object.keys(config.agent || {}),
-      });
-
-      config.agent = {
-        ...config.agent,
-        "test-agent": {
-          description: "测试代理",
-          mode: "subagent",
-          prompt: "你是一个测试代理。",
-        },
-        "build-max": {
-          description: "主编排代理，负责任务编排",
-          mode: "primary",
-          prompt: "你是主编排代理。",
-        },
-      };
-
-      console.log("[php-flow-agent] CONFIG HOOK 完成", {
-        agents: Object.keys(config.agent),
-      });
+    "tool.execute.before": async (input, output) => {
+      // 权限验证 hook
+      if (input.tool === "edit" || input.tool === "write") {
+        // 可在此处添加自定义权限逻辑
+      }
+    },
+    "tool.execute.after": async (input, output) => {
+      // 调用链追踪
     },
   };
 };
