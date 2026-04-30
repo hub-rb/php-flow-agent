@@ -1,92 +1,74 @@
 /**
  * php-flow-agent Plugin
- * 基于 OpenCode 生态插件方式
- * - 使用 config hook 注入 agents
- * - 从 markdown prompt 文件读取配置
+ * 配置文件: ~/.config/opencode/php-flow-agent.json
  */
 import { readFile } from "fs/promises";
 import { join } from "path";
 
 const PLUGIN = "php-flow-agent";
 
-/**
- * 解析 markdown frontmatter
- */
+async function loadJson(filePath) {
+  try { return JSON.parse(await readFile(filePath, "utf-8")); } catch { return null; }
+}
+
 function parseFrontmatter(raw) {
-  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-  if (!match) return { config: {}, content: raw };
-
-  const frontmatter = match[1];
-  const content = match[2].trim();
-  const config = {};
-
-  for (const line of frontmatter.split("\n")) {
-    const m = line.match(/^(\w+):\s*(.+)$/);
-    if (m) {
-      const key = m[1], val = m[2].trim();
-      if (val === "true") config[key] = true;
-      else if (val === "false") config[key] = false;
-      else config[key] = val;
+  const m = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!m) return { cfg: {}, content: raw };
+  const cfg = {};
+  for (const line of m[1].split("\n")) {
+    const kv = line.match(/^(\w+):\s*(.+)$/);
+    if (kv) {
+      const v = kv[2].trim();
+      cfg[kv[1]] = v === "true" ? true : v === "false" ? false : isNaN(+v) ? v : +v;
     }
   }
-
-  return { config, content };
+  return { cfg, content: m[2].trim() };
 }
 
-/**
- * 加载 agent 的 markdown prompt 并解析配置
- */
-async function loadAgent(promptDir, agentName) {
-  const filePath = join(promptDir, `${agentName}.md`);
-  const raw = await readFile(filePath, "utf-8");
-  const { config, content } = parseFrontmatter(raw);
-
-  return {
-    description: config.description || "",
-    mode: config.mode || "subagent",
-    model: config.model || undefined,
-    tools: config.tools || undefined,
-    prompt: content,
-  };
+async function loadAgent(promptDir, name) {
+  const { cfg, content } = parseFrontmatter(await readFile(join(promptDir, `${name}.md`), "utf-8"));
+  return { description: cfg.description || "", mode: cfg.mode || "subagent", model: cfg.model, tools: cfg.tools, prompt: content };
 }
+
+// 默认 agent 定义（配置文件中可覆盖 model/description）
+const DEFAULTS = {
+  "build-max":          { desc: "主编排代理，负责对话理解、任务编排、进度追踪", mode: "primary" },
+  "build-max-analyzer": { desc: "分析需求，输出任务清单（带依赖关系）", model: "alibaba-coding-plan-cn/glm-5" },
+  "build-max-coder":    { desc: "执行编码任务，遵循红线规则", model: "alibaba-coding-plan-cn/qwen3.6-plus" },
+  "build-max-git-manager": { desc: "Git操作管理，生成规范化commit文案", model: "minimax-cn-coding-plan/MiniMax-M2.7" },
+  "build-max-image-reader": { desc: "分析图片/UI截图/设计稿", model: "alibaba-coding-plan-cn/qwen3.6-plus" },
+  "build-max-reviewer": { desc: "代码审查代理，检查完成度、质量、安全、性能", model: "alibaba-coding-plan-cn/glm-5" },
+};
 
 export const BuildMaxPlugin = async (ctx) => {
-  console.log(`[${PLUGIN}] STEP1: 插件初始化, dir=${ctx.directory}`);
-
-  // prompts 目录：相对于插件源码目录
-  const promptDir = join(ctx.directory, "src", "agents", "prompts");
+  console.log(`[${PLUGIN}] 初始化为`, ctx.directory);
 
   try {
-    // 从 markdown 加载 agent 配置（模型可配置化）
-    const buildMax = await loadAgent(promptDir, "build-max");
-    const analyzer = await loadAgent(promptDir, "build-max-analyzer");
-    const coder = await loadAgent(promptDir, "build-max-coder");
-    const gitManager = await loadAgent(promptDir, "build-max-git-manager");
-    const imageReader = await loadAgent(promptDir, "build-max-image-reader");
-    const reviewer = await loadAgent(promptDir, "build-max-reviewer");
+    const promptDir = join(ctx.directory, "src", "agents", "prompts");
+    const configPath = join(process.env.USERPROFILE || "~", ".config", "opencode", "php-flow-agent.json");
 
-    console.log(`[${PLUGIN}] STEP2: 已加载 6 个 agent 配置`);
+    // 加载用户配置
+    const userConfig = (await loadJson(configPath)) || {};
+    console.log(`[${PLUGIN}] 加载配置:`, userConfig.agents ? Object.keys(userConfig.agents) : "(无自定义)");
+
+    // 加载 agent prompts + 合并用户自定义配置
+    const agents = {};
+    for (const [name, def] of Object.entries(DEFAULTS)) {
+      const prompt = await loadAgent(promptDir, name);
+      const override = userConfig.agents?.[name] || {};
+      agents[name] = {
+        description: override.description || def.desc,
+        mode: def.mode || "subagent",
+        model: override.model || def.model || prompt.model,
+        prompt: prompt.prompt,
+        tools: prompt.tools,
+      };
+    }
 
     return {
       config: async (config) => {
-        console.log(`[${PLUGIN}] STEP3: config hook 触发`);
-        console.log(`[${PLUGIN}] 现有 agents:`, Object.keys(config.agent || {}));
-
-        // 与 micode 完全一致的方式 —— spread 合并
-        config.agent = {
-          ...config.agent,
-          // 显式保留 plan/build
-          build: config.agent?.build,
-          plan: config.agent?.plan,
-          "build-max": { ...buildMax, mode: "primary" },
-          "build-max-analyzer": analyzer,
-          "build-max-coder": coder,
-          "build-max-git-manager": gitManager,
-          "build-max-image-reader": imageReader,
-          "build-max-reviewer": reviewer,
-        };
-
-        console.log(`[${PLUGIN}] STEP4: config 完成, agents:`, Object.keys(config.agent));
+        config.agent = { ...config.agent, build: config.agent?.build, plan: config.agent?.plan, ...agents };
+        console.log(`[${PLUGIN}] 已注入 agents:`, Object.keys(config.agent));
       },
     };
   } catch (e) {
