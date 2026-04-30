@@ -19,11 +19,8 @@ export const BuildMaxPlugin = async (ctx) => {
           console.log(`[${PLUGIN}] STEP2: config hook 被调用`);
           console.log(`[${PLUGIN}] 现有 agents:`, Object.keys(config.agent || {}));
 
-          config.agent = Object.assign({}, config.agent, {
-            // demote built-in agents to subagent（与 micode 一致）
-            build: Object.assign({}, config.agent?.build, { mode: "subagent" }),
-            plan: Object.assign({}, config.agent?.plan, { mode: "subagent" }),
-
+          // 直接修改原有对象，不要替换（OpenCode 持有原引用）
+          Object.assign(config.agent, {
             // 我们的 agents
             "build-max": {
               description: "主编排代理，负责对话理解、任务编排、进度追踪",
