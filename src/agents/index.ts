@@ -4,7 +4,7 @@
  */
 
 import type { BuildMaxAgentConfig } from '@/types';
-import { buildMaxAgent } from './build-max';
+import { leaderAgent } from './leader';
 import { analyzerAgent } from './analyzer';
 import { coderAgent } from './coder';
 import { gitManagerAgent } from './git-manager';
@@ -14,7 +14,7 @@ import { reviewerAgent } from './reviewer';
 // Agent 配置注册表
 export const agents: Record<string, BuildMaxAgentConfig> = {
   // Primary Agent（主编排代理）
-  [buildMaxAgent.name]: buildMaxAgent,
+  [leaderAgent.name]: leaderAgent,
 
   // Subagents（子代理）
   [analyzerAgent.name]: analyzerAgent,
@@ -25,11 +25,11 @@ export const agents: Record<string, BuildMaxAgentConfig> = {
 };
 
 // 导出 Primary Agent 名称（用于 Plugin 配置）
-export const PRIMARY_AGENT_NAME = buildMaxAgent.name;
+export const PRIMARY_AGENT_NAME = leaderAgent.name;
 
 // 导出所有 agent 配置（便于单独引用）
 export {
-  buildMaxAgent,
+  leaderAgent,
   analyzerAgent,
   coderAgent,
   gitManagerAgent,

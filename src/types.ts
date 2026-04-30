@@ -1,43 +1,85 @@
 import type { Plugin } from "@opencode-ai/plugin";
 
 // ============================================================================
-// Agent 权限类型
+// OpenCode 标准 Agent 权限类型
 // ============================================================================
 
 /**
- * Agent 权限配置
- * 定义 Agent 可使用的工具和操作范围
+ * 权限动作配置
+ * - "ask": 每次操作前询问用户
+ * - "allow": 自动允许
+ * - "deny": 拒绝执行
+ */
+export type PermissionAction = "ask" | "allow" | "deny";
+
+/**
+ * 权限对象配置（按路径/名称细分）
+ * Key 是 glob pattern 或命令名，Value 是动作
+ * 例如：{ "docs/**": "allow", "*": "deny" }
+ */
+export type PermissionObjectConfig = Record<string, PermissionAction>;
+
+/**
+ * 权限规则配置
+ * 可以是单一动作，或按路径/名称细分的对象配置
+ */
+export type PermissionRuleConfig = PermissionAction | PermissionObjectConfig;
+
+/**
+ * OpenCode 标准 Agent 权限配置
+ * 参考: https://opencode.ai/config.json
  */
 export interface AgentPermission {
-  /** 文件读取权限：true 表示完全开放，或限制为指定路径 */
-  read?: boolean | { paths: string[] };
+  /** 文件读取权限 */
+  read?: PermissionRuleConfig;
 
-  /** 文件写入权限：true 表示完全开放，或限制为指定路径 */
-  write?: boolean | { paths: string[] };
+  /** 文件编辑权限 */
+  edit?: PermissionRuleConfig;
 
-  /** 文件编辑权限：true 表示完全开放，或限制为指定路径 */
-  edit?: boolean | { paths?: string[] };
-
-  /** Shell 执行权限：true 表示完全开放，或限制命令列表/自定义验证 */
-  bash?: boolean | {
-    allowedCommands?: string[];
-    validateCommand?: (cmd: string) => boolean;
-  };
-
-  /** 内容搜索权限 */
-  grep?: boolean;
+  /** 文件写入权限 */
+  write?: PermissionRuleConfig;
 
   /** 文件匹配权限 */
-  glob?: boolean;
+  glob?: PermissionRuleConfig;
 
-  /** Skill 使用权限：true 表示完全开放，或限制为指定 Skill 列表 */
-  skill?: boolean | { allowed?: string[] };
+  /** 内容搜索权限 */
+  grep?: PermissionRuleConfig;
+
+  /** 目录列表权限 */
+  list?: PermissionRuleConfig;
+
+  /** Shell 执行权限 */
+  bash?: PermissionRuleConfig;
+
+  /** Task 调用权限（按 agent 名称细分） */
+  task?: PermissionRuleConfig;
+
+  /** 外部目录访问权限 */
+  external_directory?: PermissionRuleConfig;
+
+  /** TodoWrite 权限 */
+  todowrite?: PermissionAction;
 
   /** 用户交互提问权限 */
-  question?: boolean;
+  question?: PermissionAction;
 
-  /** Task 调用权限（Agent 间调用的白名单） */
-  task?: boolean | { allowedAgents?: string[] };
+  /** WebFetch 权限 */
+  webfetch?: PermissionAction;
+
+  /** WebSearch 权限 */
+  websearch?: PermissionAction;
+
+  /** CodeSearch 权限 */
+  codesearch?: PermissionAction;
+
+  /** LSP 权限 */
+  lsp?: PermissionRuleConfig;
+
+  /** DoomLoop 权限 */
+  doom_loop?: PermissionAction;
+
+  /** Skill 使用权限 */
+  skill?: PermissionRuleConfig;
 }
 
 /**
@@ -48,7 +90,7 @@ export interface AgentPermission {
 export type AgentMode = "primary" | "subagent";
 
 /**
- * Agent 配置（扩展 OpenCode AgentConfig）
+ * Agent 配置（符合 OpenCode AgentConfig 标准）
  * 用于构建多代理系统中的单个 Agent 定义
  */
 export interface BuildMaxAgentConfig {
@@ -64,122 +106,17 @@ export interface BuildMaxAgentConfig {
   /** 指定使用的模型，格式: provider/model（如 openai/gpt-4o） */
   model?: string;
 
-  /** 权限配置 */
-  permission: AgentPermission;
+  /** 权限配置（OpenCode 标准） */
+  permission?: AgentPermission;
 
-  /** 工具开关映射，key 为工具名，value 为是否启用 */
-  tools?: Record<string, boolean>;
+  /** 内联 prompt 提示词 */
+  prompt?: string;
 
-  /** Prompt 模板文件路径（markdown 格式） */
-  promptPath?: string;
-}
+  /** 颜色配置 */
+  color?: string;
 
-// ============================================================================
-// Hook 类型
-// ============================================================================
-
-/**
- * Hook 优先级
- * 数字越大优先级越高，数值高的 Hook 先执行
- */
-export type HookPriority = number;
-
-/**
- * Hook 执行上下文
- * 在 Hook 触发时传递的运行时信息
- */
-export interface HookContext {
-  /** 当前 Agent 名称 */
-  agentName: string;
-
-  /** 会话 ID */
-  sessionId: string;
-
-  /** 触发 Hook 的工具名称（可选） */
-  toolName?: string;
-
-  /** 工具调用参数（可选） */
-  toolArgs?: Record<string, unknown>;
-
-  /** 工具执行结果（可选） */
-  result?: unknown;
-}
-
-/**
- * Hook 函数类型
- * @param input - Hook 输入参数（工具调用前的请求参数）
- * @param output - Hook 输出参数（工具调用后的响应结果）
- */
-export type HookFunction<TInput = unknown, TOutput = unknown> = (
-  input: TInput,
-  output: TOutput,
-) => Promise<void> | void;
-
-/**
- * Hook 配置
- * 定义一个可注册到 OpenCode 插件系统的 Hook
- */
-export interface HookConfig {
-  /** Hook 名称，用于日志和调试 */
-  name: string;
-
-  /** 执行优先级，数值越大越先执行 */
-  priority: HookPriority;
-
-  /** 触发的事件名，如 "tool.execute.before" */
-  event: string;
-
-  /** 处理函数 */
-  handler: HookFunction;
-}
-
-// ============================================================================
-// 调用链追踪类型
-// ============================================================================
-
-/**
- * 单次 Agent 调用记录
- * 用于追踪 Agent 间的调用关系和执行状态
- */
-export interface CallTraceRecord {
-  /** 调用时间戳（ISO 8601 格式） */
-  timestamp: string;
-
-  /** 所属会话 ID */
-  sessionId: string;
-
-  /** 调用方 Agent 名称 */
-  callerAgent: string;
-
-  /** 被调用方 Agent 名称 */
-  targetAgent: string;
-
-  /** 调用输入参数 */
-  input: unknown;
-
-  /** 调用输出结果（可选） */
-  output?: unknown;
-
-  /** 调用耗时（毫秒） */
-  duration: number;
-
-  /** 调用状态 */
-  status: "success" | "error" | "blocked";
-
-  /** 错误信息（status 为 error 时填充） */
-  errorMessage?: string;
-}
-
-/**
- * 调用链存储
- * 内存中的调用记录集合，带容量限制防止内存膨胀
- */
-export interface CallTraceStore {
-  /** 调用记录列表 */
-  records: CallTraceRecord[];
-
-  /** 最大记录数，超出时淘汰最旧的记录 */
-  maxRecords: number;
+  /** 最大迭代步数 */
+  steps?: number;
 }
 
 // ============================================================================
@@ -218,9 +155,6 @@ export interface PluginConfig {
   /** Agent 配置映射，key 为 Agent 名称 */
   agents: Record<string, BuildMaxAgentConfig>;
 
-  /** Hook 配置列表 */
-  hooks: HookConfig[];
-
   /** 命令扩展映射（可选） */
   commands?: Record<string, CommandExtension>;
 
@@ -237,45 +171,58 @@ export interface PluginConfig {
  * 集中管理所有 Agent 的标识名，避免硬编码字符串
  */
 export const AGENT_NAMES = {
-  PRIMARY: "build-max",
-  ANALYZER: "build-max-analyzer",
-  CODER: "build-max-coder",
-  GIT_MANAGER: "build-max-git-manager",
-  IMAGE_READER: "build-max-image-reader",
-  REVIEWER: "build-max-reviewer",
-} as const;
-
-/**
- * Hook 优先级常量
- * 统一管理 Hook 的执行顺序
- */
-export const HOOK_PRIORITIES = {
-  /** 权限检查 - 最高优先级，确保所有操作经过权限验证 */
-  PERMISSION_ENFORCER: 100,
-
-  /** 调用链记录 - 中等优先级，记录所有 Agent 调用 */
-  CALL_TRACER: 50,
-
-  /** 上下文注入 - 较低优先级，注入额外上下文信息 */
-  CONTEXT_INJECTOR: 30,
-
-  /** 自动压缩 - 最低优先级，上下文超限时触发压缩 */
-  AUTO_COMPACT: 10,
+  PRIMARY: "leader",
+  ANALYZER: "analyzer",
+  CODER: "coder",
+  GIT_MANAGER: "git-manager",
+  IMAGE_READER: "image-reader",
+  REVIEWER: "reviewer",
 } as const;
 
 /**
  * 默认配置常量
  */
 export const DEFAULT_CONFIG = {
-  /** 调用链最大记录数 */
-  MAX_TRACE_RECORDS: 1000,
-
-  /** 上下文使用率阈值，超过此比例触发自动压缩（50%） */
-  COMPACT_THRESHOLD: 0.5,
-
   /** 计划文件存储目录 */
   PLAN_DIR: "docs/opencode/plan",
 } as const;
+
+// ============================================================================
+// Plugin 运行时类型
+// ============================================================================
+
+/** 用户配置文件结构 */
+export interface UserConfig {
+  agents?: Record<string, { model?: string; description?: string }>;
+  primaryModel?: string;
+  /** 日志配置 */
+  logging?: {
+    /** 是否启用控制台日志（默认 true） */
+    console?: boolean;
+    /** 是否启用文件日志（默认 true） */
+    file?: boolean;
+    /** 日志级别：debug | info | warn | error（默认 info） */
+    level?: 'debug' | 'info' | 'warn' | 'error';
+  };
+}
+
+/** 上下文存储条目 */
+export interface ContextEntry {
+  createdAt: string;
+  traces: number;
+}
+
+/** Agent 默认配置结构 */
+export interface AgentDefault {
+  description: string;
+  mode?: string;
+  prompt: string;
+}
+
+/** OpenCode agent 注册表结构 */
+export interface AgentRegistry {
+  agent?: Record<string, unknown>;
+}
 
 // ============================================================================
 // 类型导出（供外部模块使用）

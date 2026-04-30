@@ -5,3 +5,5 @@ dist/
 bun.lockb
 package-lock.json
 logs/
+docs
+test-*.js
