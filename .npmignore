@@ -1,0 +1,26 @@
+# 开发文件
+tests/
+*.test.ts
+*.spec.ts
+
+# 配置文件
+tsconfig.json
+tsconfig.*.json
+.eslintrc*
+biome.json
+lefthook.yml
+.gitignore
+
+# 文档和计划
+docs/
+*.md
+!README.md
+
+# 构建产物
+*.log
+.DS_Store
+bun.lockb
+
+# 源码（只发布 dist）
+src/
+!dist/
