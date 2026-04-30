@@ -131,8 +131,5 @@ const BuildMaxPlugin: Plugin = async (ctx) => {
   return hooksResult;
 };
 
-// 导出 Plugin
+// 导出 Plugin（格式与 micode 一致）
 export { BuildMaxPlugin };
-
-// 默认导出
-export default BuildMaxPlugin;

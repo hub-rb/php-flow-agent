@@ -2,8 +2,8 @@
   "name": "php-flow-agent",
   "version": "1.0.1",
   "description": "OpenCode plugin with multi-agent orchestration system",
-  "module": "dist/index.js",
-  "main": "dist/index.js",
+  "module": "src/index.ts",
+  "main": "src/index.ts",
   "types": "src/index.ts",
   "type": "module",
   "files": [
