@@ -1,12 +1,13 @@
 {
-  "name": "@build-max/plugin",
-  "version": "1.0.0",
+  "name": "php-flow-agent",
+  "version": "1.0.1",
   "description": "OpenCode plugin with multi-agent orchestration system",
   "module": "dist/index.js",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "src/index.ts",
   "type": "module",
   "files": [
+    "src",
     "dist",
     "README.md"
   ],
@@ -27,12 +28,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/hub-rb/php-flow-agent.git"
   },
+  "homepage": "https://github.com/hub-rb/php-flow-agent#readme",
   "bugs": {
-    "url": ""
+    "url": "https://github.com/hub-rb/php-flow-agent/issues"
   },
-  "homepage": "",
   "dependencies": {
     "@opencode-ai/plugin": "^1.14.0"
   },
