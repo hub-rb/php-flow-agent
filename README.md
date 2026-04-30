@@ -45,7 +45,7 @@ npm install php-flow-agent
 
 ```json
 {
-  "plugin": ["php-flow-agent"]
+  "plugin": ["php-flow-agent@git+https://github.com/hub-rb/php-flow-agent.git"]
 }
 ```
 
