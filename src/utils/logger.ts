@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -17,8 +17,8 @@ export const LOG_SERVICE = 'php-flow-agent';
 
 /** 默认日志配置 */
 const DEFAULT_LOG_CONFIG = {
-  console: true,
-  file: true,
+  console: false,
+  file: false,
   level: 'info' as LogLevel,
 };
 
@@ -74,9 +74,47 @@ export function reloadLogConfig(): void {
 // ============================================================
 
 /** 日志文件目录 */
-const LOG_DIR = join(process.env.USERPROFILE || process.env.HOME || '~', '.config', 'opencode', 'logs');
-/** 日志文件路径 */
-const LOG_FILE = join(LOG_DIR, 'php-flow-agent.log');
+const LOG_DIR = join(process.env.USERPROFILE || process.env.HOME || '~', '.config', 'opencode', 'logs', 'php-flow-agent');
+/** 最大保留日志文件数 */
+const MAX_LOG_FILES = 5;
+
+/**
+ * 获取当天日志文件路径
+ */
+function getLogFilePath(): string {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return join(LOG_DIR, `${year}-${month}-${day}.log`);
+}
+
+/**
+ * 清理超过 MAX_LOG_FILES 的最老日志文件
+ */
+function cleanupOldLogs(): void {
+  if (!existsSync(LOG_DIR)) return;
+
+  try {
+    const files = readdirSync(LOG_DIR)
+      .filter(f => f.endsWith('.log'))
+      .map(f => ({
+        name: f,
+        path: join(LOG_DIR, f),
+        time: statSync(join(LOG_DIR, f)).mtime.getTime(),
+      }))
+      .sort((a, b) => a.time - b.time);
+
+    while (files.length > MAX_LOG_FILES) {
+      const oldest = files.shift();
+      if (oldest) {
+        unlinkSync(oldest.path);
+      }
+    }
+  } catch {
+    // 清理失败不影响日志写入
+  }
+}
 
 /**
  * 确保日志目录存在
@@ -92,11 +130,13 @@ function ensureLogDir(): void {
  */
 function writeToFile(level: LogLevel, message: string, extra?: Record<string, unknown>): void {
   ensureLogDir();
+  cleanupOldLogs();
+  const logFile = getLogFilePath();
   const timestamp = new Date().toISOString();
   const extraStr = extra ? ` ${JSON.stringify(extra)}` : '';
   const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}${extraStr}\n`;
   try {
-    appendFileSync(LOG_FILE, logLine, 'utf-8');
+    appendFileSync(logFile, logLine, 'utf-8');
   } catch {
     // 文件写入失败不影响控制台输出
   }
@@ -124,11 +164,11 @@ export function log(
 
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [${LOG_SERVICE}] [${level.toUpperCase()}]`;
-  
-  const logMessage = extra 
+
+  const logMessage = extra
     ? `${prefix} ${message} ${JSON.stringify(extra)}`
     : `${prefix} ${message}`;
-  
+
   // console 输出（可配置关闭）
   if (logConfig.console) {
     switch (level) {
