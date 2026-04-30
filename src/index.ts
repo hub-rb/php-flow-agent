@@ -1,79 +1,98 @@
 /**
  * php-flow-agent Plugin
- * 完全模仿 OpenCode 生态插件方式，纯 JS 对象注入 agents
+ * 基于 OpenCode 生态插件方式
+ * - 使用 config hook 注入 agents
+ * - 从 markdown prompt 文件读取配置
  */
-
-// 不使用任何 import type，避免模块解析失败
-// @opencode-ai/plugin 作为 peerDependency，由 OpenCode 环境提供
+import { readFile } from "fs/promises";
+import { join } from "path";
 
 const PLUGIN = "php-flow-agent";
 
+/**
+ * 解析 markdown frontmatter
+ */
+function parseFrontmatter(raw) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return { config: {}, content: raw };
+
+  const frontmatter = match[1];
+  const content = match[2].trim();
+  const config = {};
+
+  for (const line of frontmatter.split("\n")) {
+    const m = line.match(/^(\w+):\s*(.+)$/);
+    if (m) {
+      const key = m[1], val = m[2].trim();
+      if (val === "true") config[key] = true;
+      else if (val === "false") config[key] = false;
+      else config[key] = val;
+    }
+  }
+
+  return { config, content };
+}
+
+/**
+ * 加载 agent 的 markdown prompt 并解析配置
+ */
+async function loadAgent(promptDir, agentName) {
+  const filePath = join(promptDir, `${agentName}.md`);
+  const raw = await readFile(filePath, "utf-8");
+  const { config, content } = parseFrontmatter(raw);
+
+  return {
+    description: config.description || "",
+    mode: config.mode || "subagent",
+    model: config.model || undefined,
+    tools: config.tools || undefined,
+    prompt: content,
+  };
+}
+
 export const BuildMaxPlugin = async (ctx) => {
-  console.log(`[${PLUGIN}] STEP1: 插件函数被调用`);
-  console.log(`[${PLUGIN}] ctx.directory:`, ctx.directory);
+  console.log(`[${PLUGIN}] STEP1: 插件初始化, dir=${ctx.directory}`);
+
+  // prompts 目录：相对于插件源码目录
+  const promptDir = join(ctx.directory, "src", "agents", "prompts");
 
   try {
-    const hooks = {
+    // 从 markdown 加载 agent 配置（模型可配置化）
+    const buildMax = await loadAgent(promptDir, "build-max");
+    const analyzer = await loadAgent(promptDir, "build-max-analyzer");
+    const coder = await loadAgent(promptDir, "build-max-coder");
+    const gitManager = await loadAgent(promptDir, "build-max-git-manager");
+    const imageReader = await loadAgent(promptDir, "build-max-image-reader");
+    const reviewer = await loadAgent(promptDir, "build-max-reviewer");
+
+    console.log(`[${PLUGIN}] STEP2: 已加载 6 个 agent 配置`);
+
+    return {
       config: async (config) => {
-        try {
-          console.log(`[${PLUGIN}] STEP2: config hook 被调用`);
-          console.log(`[${PLUGIN}] 现有 agents:`, Object.keys(config.agent || {}));
+        console.log(`[${PLUGIN}] STEP3: config hook 触发`);
+        console.log(`[${PLUGIN}] 现有 agents:`, Object.keys(config.agent || {}));
 
-          // 直接修改原有对象，不要替换（OpenCode 持有原引用）
-          Object.assign(config.agent, {
-            // 我们的 agents
-            "build-max": {
-              description: "主编排代理，负责对话理解、任务编排、进度追踪",
-              mode: "primary",
-              prompt: "你是主编排代理。负责理解用户意图、判断复杂度、编排任务、追踪进度。",
-            },
-            "build-max-analyzer": {
-              description: "分析需求，输出任务清单（带依赖关系）",
-              mode: "subagent",
-              model: "alibaba-coding-plan-cn/glm-5",
-              prompt: "你是需求分析专家。分析需求复杂度，输出结构化任务清单。",
-            },
-            "build-max-coder": {
-              description: "执行编码任务，遵循红线规则",
-              mode: "subagent",
-              model: "alibaba-coding-plan-cn/qwen3.6-plus",
-              prompt: "你是编码执行专家。修改前先read，不假设不存在的类/方法，只改目标代码。",
-            },
-            "build-max-git-manager": {
-              description: "Git操作管理，生成规范化commit文案",
-              mode: "subagent",
-              model: "minimax-cn-coding-plan/MiniMax-M2.7",
-              prompt: "你是Git管理专家。只执行git命令，生成规范化commit文案。",
-            },
-            "build-max-image-reader": {
-              description: "分析图片/UI截图/设计稿",
-              mode: "subagent",
-              model: "alibaba-coding-plan-cn/qwen3.6-plus",
-              prompt: "你是图片分析专家。解读图片内容并返回结构化描述。",
-            },
-            "build-max-reviewer": {
-              description: "代码审查代理，检查完成度、质量、安全、性能",
-              mode: "subagent",
-              model: "alibaba-coding-plan-cn/glm-5",
-              prompt: "你是代码审查专家。只检查不修改，检查需求完成度、代码质量、安全性、性能。",
-            },
-          });
+        // 与 micode 完全一致的方式 —— spread 合并
+        config.agent = {
+          ...config.agent,
+          // 显式保留 plan/build
+          build: config.agent?.build,
+          plan: config.agent?.plan,
+          "build-max": { ...buildMax, mode: "primary" },
+          "build-max-analyzer": analyzer,
+          "build-max-coder": coder,
+          "build-max-git-manager": gitManager,
+          "build-max-image-reader": imageReader,
+          "build-max-reviewer": reviewer,
+        };
 
-          console.log(`[${PLUGIN}] STEP3: config 完成，agents:`, Object.keys(config.agent));
-        } catch (e) {
-          console.error(`[${PLUGIN}] config hook 内部错误:`, e);
-          throw e;
-        }
+        console.log(`[${PLUGIN}] STEP4: config 完成, agents:`, Object.keys(config.agent));
       },
     };
-
-    console.log(`[${PLUGIN}] STEP4: 返回 hooks`);
-    return hooks;
   } catch (e) {
-    console.error(`[${PLUGIN}] 插件函数错误:`, e);
+    console.error(`[${PLUGIN}] 错误:`, e);
     return {};
   }
 };
 
-// 同时导出 server 和命名导出，兼容两种加载模式
 export { BuildMaxPlugin as server };
