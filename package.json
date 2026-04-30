@@ -1,6 +1,6 @@
 {
   "name": "php-flow-agent",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "OpenCode plugin with multi-agent orchestration system",
   "module": "src/index.ts",
   "main": "src/index.ts",
