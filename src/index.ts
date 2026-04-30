@@ -72,7 +72,8 @@ function parseFrontmatter(raw: string): Record<string, unknown> {
  * build-max Plugin 实现
  */
 const BuildMaxPlugin: Plugin = async (ctx) => {
-  const { project, directory, worktree } = ctx;
+  try {
+    const { project, directory, worktree } = ctx;
 
   console.log(`[${PLUGIN_NAME}] Plugin 初始化`);
   console.log(`[${PLUGIN_NAME}] directory: ${directory}`);
@@ -129,7 +130,12 @@ const BuildMaxPlugin: Plugin = async (ctx) => {
   };
 
   return hooksResult;
+  } catch (error) {
+    console.error(`[${PLUGIN_NAME}] 初始化失败:`, error);
+    return {};
+  }
 };
 
-// 导出 Plugin（格式与 micode 一致）
+// 导出 Plugin（server 格式 + 命名导出兼容）
+export { BuildMaxPlugin as server };
 export { BuildMaxPlugin };
