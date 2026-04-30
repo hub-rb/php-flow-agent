@@ -222,8 +222,5 @@ export const BuildMaxPlugin = async (ctx) => {
   };
 };
 
-// 查询接口
-export function getCallTraces() { return [...callTraces]; }
-export function clearCallTraces() { callTraces.length = 0; }
-
+// 只导出插件函数（其他导出会被 OpenCode 误认为插件）
 export { BuildMaxPlugin as server };
