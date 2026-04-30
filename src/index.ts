@@ -67,10 +67,16 @@ export const BuildMaxPlugin = async (ctx) => {
 
     return {
       config: async (config) => {
-        // 不创建新对象，直接往 config.agent 添加属性
-        for (const [name, cfg] of Object.entries(agents)) {
-          config.agent[name] = cfg;
-        }
+        // 深拷贝保留 plan/build 避免丢失引用特性
+        const build = config.agent?.build ? JSON.parse(JSON.stringify(config.agent.build)) : undefined;
+        const plan = config.agent?.plan ? JSON.parse(JSON.stringify(config.agent.plan)) : undefined;
+
+        config.agent = {
+          ...config.agent,
+          ...(build ? { build } : {}),
+          ...(plan ? { plan } : {}),
+          ...agents,
+        };
         console.log(`[${PLUGIN}] 已注入 agents:`, Object.keys(config.agent));
       },
     };
